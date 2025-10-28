@@ -54,8 +54,71 @@ export default function ARViewer({ assetUrl, poster, alt = "AR Asset", autoActiv
     }
   }, [autoActivateAR, isLoading, assetType]);
 
+  // Handle video textures in GLB models
+  useEffect(() => {
+    if (assetType === 'model' && modelViewerRef.current) {
+      const modelViewer = modelViewerRef.current;
+
+      // Listen for model load to apply video textures
+      const handleModelLoad = () => {
+        // Check if this is a video-textured model by looking for video elements in the model
+        setTimeout(() => {
+          // Find any video elements that might be part of the model
+          const videos = modelViewer.shadowRoot?.querySelectorAll('video') || [];
+          videos.forEach((video: HTMLVideoElement) => {
+            if (!video.src && video.dataset.videoUrl) {
+              video.src = video.dataset.videoUrl;
+              video.crossOrigin = 'anonymous';
+              video.loop = true;
+              video.muted = false;
+              video.playsInline = true;
+              video.play().catch(err => {
+                console.log('Video autoplay failed, user interaction required:', err);
+              });
+            }
+          });
+
+          // Alternative: Check for materials that should be video textures
+          const materials = modelViewer.shadowRoot?.querySelectorAll('[data-video-texture]');
+          materials.forEach((material: any) => {
+            const videoUrl = material.dataset.videoTexture;
+            if (videoUrl) {
+              // Create video element and apply as texture
+              const video = document.createElement('video');
+              video.src = videoUrl;
+              video.crossOrigin = 'anonymous';
+              video.loop = true;
+              video.muted = false;
+              video.playsInline = true;
+              video.style.display = 'none';
+              document.body.appendChild(video);
+
+              video.addEventListener('loadeddata', () => {
+                video.play().catch(console.error);
+              });
+
+              // Store reference for cleanup
+              (material as any)._arVideo = video;
+            }
+          });
+        }, 1000); // Wait for model to fully load
+      };
+
+      modelViewer.addEventListener('load', handleModelLoad);
+      return () => {
+        modelViewer.removeEventListener('load', handleModelLoad);
+        // Cleanup video elements
+        const videos = document.querySelectorAll('video[data-ar-video-temp]');
+        videos.forEach(video => video.remove());
+      };
+    }
+  }, [assetType, assetUrl]);
+
   const renderModelViewer = () => {
     if (assetType === 'model') {
+      // Check if this is a video-textured model (URL contains video indicators)
+      const isVideoTextured = assetUrl.includes('video') || assetUrl.includes('campaign') || assetUrl.includes('bjp');
+
       return (
         <model-viewer
           ref={modelViewerRef}
@@ -65,10 +128,11 @@ export default function ARViewer({ assetUrl, poster, alt = "AR Asset", autoActiv
           ar
           ar-modes="webxr scene-viewer quick-look"
           camera-controls
-          auto-rotate
+          auto-rotate={!isVideoTextured} // Disable auto-rotate for video models
           shadow-intensity="1"
           exposure="1"
           style={{ width: '100%', height: '100%', minHeight: '400px' }}
+          data-video-textured={isVideoTextured ? 'true' : 'false'}
         >
           <button
             slot="ar-button"
