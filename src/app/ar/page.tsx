@@ -3,12 +3,24 @@
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
 import ARViewer from '../components/ARViewer';
+import MediaARViewer from '../components/MediaARViewer';
+
+type AssetType = 'model' | 'video' | 'image' | 'unknown';
 
 function ARExperienceContent() {
   const searchParams = useSearchParams();
   const assetUrl = searchParams.get('url');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
+  const [assetType, setAssetType] = useState<AssetType>('unknown');
+
+  const getAssetType = (url: string): AssetType => {
+    const extension = url.split('.').pop()?.toLowerCase();
+    if (['glb', 'gltf'].includes(extension || '')) return 'model';
+    if (['mp4', 'webm', 'mov'].includes(extension || '')) return 'video';
+    if (['png', 'jpg', 'jpeg', 'gif'].includes(extension || '')) return 'image';
+    return 'unknown';
+  };
 
   useEffect(() => {
     if (!assetUrl) {
@@ -20,6 +32,8 @@ function ARExperienceContent() {
     // Basic validation
     try {
       new URL(assetUrl);
+      const type = getAssetType(assetUrl);
+      setAssetType(type);
       setIsLoading(false);
     } catch {
       setError('Invalid asset URL');
@@ -76,11 +90,27 @@ function ARExperienceContent() {
 
         {/* AR Viewer */}
         <div className="w-full max-w-4xl mx-auto" style={{ height: '600px' }}>
-          <ARViewer
-            assetUrl={assetUrl!}
-            alt="Custom AR Asset"
-            autoActivateAR={true}
-          />
+          {assetType === 'model' ? (
+            <ARViewer
+              assetUrl={assetUrl!}
+              alt="Custom AR Asset"
+              autoActivateAR={true}
+            />
+          ) : (assetType === 'video' || assetType === 'image') ? (
+            <MediaARViewer
+              assetUrl={assetUrl!}
+              assetType={assetType}
+              alt="Custom AR Media"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
+              <div className="text-center text-white">
+                <div className="text-4xl mb-4">⚠️</div>
+                <p>Unsupported asset type</p>
+                <p className="text-sm text-gray-400 mt-2">Please use GLB/GLTF, MP4/WebM, or PNG/JPG files</p>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Back Button */}
