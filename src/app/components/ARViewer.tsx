@@ -49,7 +49,7 @@ export default function ARViewer({ assetUrl, poster, alt = "AR Asset", autoActiv
         if (arButton) {
           arButton.click();
         }
-      }, 1000);
+      }, 2000); // Increased delay for better reliability
       return () => clearTimeout(timer);
     }
   }, [autoActivateAR, isLoading, assetType]);
