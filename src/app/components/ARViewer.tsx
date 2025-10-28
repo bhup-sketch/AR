@@ -232,7 +232,6 @@ export default function ARViewer({ assetUrl, poster, alt = "AR Asset", autoActiv
             environment-image="neutral"
             style={{ width: '100%', height: '100%', minHeight: '400px' }}
             id="video-model-viewer"
-            skybox-image="legacy"
             data-video-url={assetUrl}
             loading="eager"
             reveal="auto"
