@@ -1,7 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import * as THREE from 'three';
+import { useEffect, useRef } from 'react';
 
 interface MediaARViewerProps {
   assetUrl: string;
@@ -10,169 +9,110 @@ interface MediaARViewerProps {
 }
 
 export default function MediaARViewer({ assetUrl, assetType, alt = "AR Media" }: MediaARViewerProps) {
-  const mountRef = useRef<HTMLDivElement>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const sceneRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!mountRef.current) return;
+    if (!sceneRef.current) return;
 
-    // Initialize Three.js scene
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    // Clear any existing content
+    sceneRef.current.innerHTML = '';
 
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.xr.enabled = true;
-    mountRef.current.appendChild(renderer.domElement);
+    // Create A-Frame scene for MindAR
+    const scene = document.createElement('a-scene');
+    scene.setAttribute('mindar-image', 'imageTargetSrc: https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.0/examples/image-tracking/assets/card-example/card.mind;');
+    scene.setAttribute('color-space', 'sRGB');
+    scene.setAttribute('renderer', 'colorManagement: true, physicallyCorrectLights');
+    scene.setAttribute('vr-mode-ui', 'enabled: false');
+    scene.setAttribute('arjs', 'sourceType: webcam; debugUIEnabled: false;');
 
-    // Add lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-    scene.add(ambientLight);
+    // Create AR target
+    const anchor = document.createElement('a-anchor');
+    anchor.setAttribute('mindar-image-target', 'targetIndex: 0');
 
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
-    directionalLight.position.set(0, 1, 0);
-    scene.add(directionalLight);
-
-    let mediaPlane: THREE.Mesh | null = null;
-    let videoElement: HTMLVideoElement | null = null;
-
-    // Create media plane
-    const createMediaPlane = () => {
-      const geometry = new THREE.PlaneGeometry(4, 3);
-      const material = new THREE.MeshBasicMaterial({ transparent: true });
-      const plane = new THREE.Mesh(geometry, material);
-      plane.position.set(0, 0, -2);
-      scene.add(plane);
-      return plane;
-    };
-
-    // Load media based on type
+    // Create media entity based on type
     if (assetType === 'video') {
-      videoElement = document.createElement('video');
-      videoElement.src = assetUrl;
-      videoElement.crossOrigin = 'anonymous';
-      videoElement.loop = true;
-      videoElement.muted = true;
-      videoElement.playsInline = true;
-
-      videoElement.addEventListener('loadeddata', () => {
-        const videoTexture = new THREE.VideoTexture(videoElement!);
-        videoTexture.minFilter = THREE.LinearFilter;
-        videoTexture.magFilter = THREE.LinearFilter;
-
-        mediaPlane = createMediaPlane();
-        (mediaPlane.material as THREE.MeshBasicMaterial).map = videoTexture;
-
-        videoElement!.play();
-        setIsLoading(false);
-      });
-
-      videoElement.addEventListener('error', () => {
-        setError('Failed to load video');
-        setIsLoading(false);
-      });
+      const video = document.createElement('a-video');
+      video.setAttribute('src', assetUrl);
+      video.setAttribute('position', '0 0 0');
+      video.setAttribute('width', '1');
+      video.setAttribute('height', '1');
+      video.setAttribute('rotation', '0 0 0');
+      video.setAttribute('play-on-click', '');
+      anchor.appendChild(video);
     } else if (assetType === 'image') {
-      const textureLoader = new THREE.TextureLoader();
-      textureLoader.load(
-        assetUrl,
-        (texture) => {
-          texture.minFilter = THREE.LinearFilter;
-          texture.magFilter = THREE.LinearFilter;
-
-          mediaPlane = createMediaPlane();
-          (mediaPlane.material as THREE.MeshBasicMaterial).map = texture;
-          setIsLoading(false);
-        },
-        undefined,
-        () => {
-          setError('Failed to load image');
-          setIsLoading(false);
-        }
-      );
+      const image = document.createElement('a-image');
+      image.setAttribute('src', assetUrl);
+      image.setAttribute('position', '0 0 0');
+      image.setAttribute('width', '1');
+      image.setAttribute('height', '1');
+      image.setAttribute('rotation', '0 0 0');
+      anchor.appendChild(image);
     }
 
-    camera.position.set(0, 0, 5);
+    scene.appendChild(anchor);
+    sceneRef.current.appendChild(scene);
 
-    // Animation loop
-    const animate = () => {
-      renderer.setAnimationLoop(() => {
-        renderer.render(scene, camera);
-      });
-    };
+    // Load A-Frame and MindAR scripts dynamically
+    const loadScripts = async () => {
+      if (!document.querySelector('script[src*="aframe"]')) {
+        const aframeScript = document.createElement('script');
+        aframeScript.src = 'https://aframe.io/releases/1.4.0/aframe.min.js';
+        document.head.appendChild(aframeScript);
 
-    // Check for WebXR support and add AR button
-    const checkXRSupport = async () => {
-      if ('xr' in navigator) {
-        try {
-          const supported = await navigator.xr!.isSessionSupported('immersive-ar');
-          if (supported) {
-            // Create AR button
-            const arButton = document.createElement('button');
-            arButton.textContent = 'Start AR';
-            arButton.className = 'absolute top-4 left-4 z-10 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors';
-            arButton.onclick = async () => {
-              try {
-                const session = await navigator.xr!.requestSession('immersive-ar', {
-                  requiredFeatures: ['hit-test'],
-                  optionalFeatures: ['dom-overlay']
-                });
-                renderer.xr.setSession(session);
-              } catch (err) {
-                console.error('Failed to start AR session:', err);
-              }
-            };
-            mountRef.current!.appendChild(arButton);
-          }
-        } catch (err) {
-          console.error('WebXR not supported:', err);
-        }
+        await new Promise((resolve) => {
+          aframeScript.onload = resolve;
+        });
+      }
+
+      if (!document.querySelector('script[src*="mind-ar"]')) {
+        const mindarScript = document.createElement('script');
+        mindarScript.src = 'https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.0/dist/mindar-image.prod.js';
+        document.head.appendChild(mindarScript);
+
+        await new Promise((resolve) => {
+          mindarScript.onload = resolve;
+        });
+      }
+
+      if (!document.querySelector('script[src*="mindar-image-aframe"]')) {
+        const mindarAframeScript = document.createElement('script');
+        mindarAframeScript.src = 'https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.0/dist/mindar-image-aframe.prod.js';
+        document.head.appendChild(mindarAframeScript);
+
+        await new Promise((resolve) => {
+          mindarAframeScript.onload = resolve;
+        });
       }
     };
 
-    checkXRSupport();
-    animate();
+    loadScripts();
 
     // Cleanup
     return () => {
-      if (videoElement) {
-        videoElement.pause();
-      }
-      renderer.dispose();
-      if (mountRef.current && renderer.domElement.parentNode) {
-        mountRef.current.removeChild(renderer.domElement);
+      if (sceneRef.current) {
+        sceneRef.current.innerHTML = '';
       }
     };
   }, [assetUrl, assetType]);
 
-  if (error) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
-        <div className="text-center text-white">
-          <div className="text-4xl mb-4">⚠️</div>
-          <p className="mb-2">{error}</p>
-          <p className="text-sm text-gray-400">Please check the URL and try again</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (isLoading) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
-        <div className="text-center text-white">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-2"></div>
-          <p>Loading media...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="w-full h-full relative">
-      <div ref={mountRef} className="w-full h-full" />
-      <div className="absolute bottom-4 left-4 right-4 text-center text-white text-sm bg-black/50 rounded-lg p-3">
-        <p>Point your camera at a flat surface and tap "Start AR" to place the media</p>
+      <div ref={sceneRef} className="w-full h-full" />
+      <div className="absolute top-4 left-4 right-4 text-center text-white text-sm bg-black/70 rounded-lg p-4">
+        <p className="mb-2">🎯 Point your camera at a marker to see the {assetType}</p>
+        <p className="text-xs text-gray-300">
+          Download a marker image from the MindAR examples to test this AR experience
+        </p>
+      </div>
+      <div className="absolute bottom-4 left-4 right-4 text-center">
+        <a
+          href="https://hiukim.github.io/mind-ar-js-doc/examples/interactive"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-block bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm"
+        >
+          View Marker Examples
+        </a>
       </div>
     </div>
   );
