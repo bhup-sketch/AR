@@ -21,10 +21,10 @@ export default function MediaARViewer({ assetUrl, assetType, alt = "AR Media" }:
 
       const handleLoadedData = () => {
         setIsLoading(false);
-        // Auto-play video
+        // Try to auto-play video
         video.play().catch(err => {
-          console.error('Auto-play failed:', err);
-          setError('Tap to play video');
+          console.log('Auto-play failed, user interaction required:', err);
+          // Don't set error, just wait for user interaction
         });
       };
 
@@ -83,16 +83,8 @@ export default function MediaARViewer({ assetUrl, assetType, alt = "AR Media" }:
     );
   }
 
-  if (isLoading) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
-        <div className="text-center text-white">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-2"></div>
-          <p>Loading {assetType}...</p>
-        </div>
-      </div>
-    );
-  }
+  // Show media immediately, don't wait for loading state
+  // This fixes the "Loading video..." issue
 
   return (
     <div className="w-full h-full relative bg-black rounded-lg overflow-hidden">
@@ -105,6 +97,7 @@ export default function MediaARViewer({ assetUrl, assetType, alt = "AR Media" }:
           playsInline
           loop
           muted={false}
+          autoPlay
           onClick={handleVideoClick}
           style={{ backgroundColor: 'black' }}
         />
@@ -116,6 +109,15 @@ export default function MediaARViewer({ assetUrl, assetType, alt = "AR Media" }:
           className="w-full h-full object-contain"
           style={{ backgroundColor: 'black' }}
         />
+      )}
+
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black/80">
+          <div className="text-center text-white">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-2"></div>
+            <p>Loading {assetType}...</p>
+          </div>
+        </div>
       )}
 
       <div className="absolute bottom-4 left-4 right-4 text-center text-white text-sm bg-black/70 rounded-lg p-3">
