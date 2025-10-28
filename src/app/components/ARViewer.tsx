@@ -80,25 +80,31 @@ export default function ARViewer({ assetUrl, poster, alt = "AR Asset", autoActiv
         setTimeout(() => {
           if (isVideoModel) {
             console.log('Setting up video texture for plane...');
-            console.log('Video URL:', modelViewer.dataset.videoUrl);
 
-            // Create and set up the video element for the plane
-            const video = document.createElement('video');
-            video.src = assetUrl; // Use assetUrl directly instead of dataset
-            video.crossOrigin = 'anonymous';
-            video.loop = true;
-            video.muted = true; // Start muted to allow autoplay
-            video.playsInline = true;
-            video.style.display = 'none';
-            document.body.appendChild(video);
-
-            console.log('Video element created:', video);
+            // Get the pre-created video element
+            const video = document.getElementById('video-source') as HTMLVideoElement;
+            if (!video) {
+              console.error('Video element not found');
+              return;
+            }
 
             // Wait for model to be ready
             const setupVideoTexture = async () => {
               try {
                 console.log('Waiting for model to be ready...');
                 await modelViewer.updateComplete;
+                
+                // Wait for the model to load
+                await new Promise((resolve) => {
+                  const checkModel = () => {
+                    if (modelViewer.model) {
+                      resolve(true);
+                    } else {
+                      setTimeout(checkModel, 100);
+                    }
+                  };
+                  checkModel();
+                });
                 
                 console.log('Model ready, accessing materials...');
                 const material = modelViewer.model?.materials[0];
@@ -107,11 +113,11 @@ export default function ARViewer({ assetUrl, poster, alt = "AR Asset", autoActiv
                   console.log('Found material, applying video texture...');
                   
                   // Create a new texture from the video
-                  const texture = new modelViewer.textureLoader.VideoTexture(video);
-                  texture.encoding = modelViewer.textureLoader.sRGBEncoding;
+                  const texture = new (window as any).THREE.VideoTexture(video);
+                  texture.encoding = (window as any).THREE.sRGBEncoding;
                   
                   // Apply the texture to the material
-                  material.pbrMetallicRoughness.baseColorTexture = texture;
+                  material.map = texture;
                   material.needsUpdate = true;
 
                   // Start playing the video
@@ -119,21 +125,24 @@ export default function ARViewer({ assetUrl, poster, alt = "AR Asset", autoActiv
                     console.log('Video loaded, attempting to play...');
                     video.play().then(() => {
                       console.log('Video playing successfully');
-                      // Once playing, unmute if needed
                       video.muted = false;
                     }).catch(err => {
                       console.error('Video autoplay failed:', err);
-                      // Add click to play fallback
-                      modelViewer.addEventListener('click', () => {
-                        video.muted = false;
-                        video.play().catch(console.error);
-                      }, { once: true });
                     });
                   });
 
-                  video.addEventListener('error', (e) => {
-                    console.error('Video error:', e);
+                  // Store reference for cleanup
+                  modelViewer._arVideo = video;
+
+                  // Set up click handler for the model viewer
+                  modelViewer.addEventListener('click', () => {
+                    if (video.paused) {
+                      video.play().catch(console.error);
+                    } else {
+                      video.pause();
+                    }
                   });
+
                 } else {
                   console.error('No material found in the model');
                 }
@@ -142,10 +151,8 @@ export default function ARViewer({ assetUrl, poster, alt = "AR Asset", autoActiv
               }
             };
 
+            // Start the setup process
             setupVideoTexture();
-
-            // Store reference for cleanup
-            modelViewer._arVideo = video;
           } else if (assetType === 'model') {
             // Handle video textures in regular models
             const videos = modelViewer.shadowRoot?.querySelectorAll('video') || [];
@@ -224,28 +231,53 @@ export default function ARViewer({ assetUrl, poster, alt = "AR Asset", autoActiv
             exposure="1"
             environment-image="neutral"
             style={{ width: '100%', height: '100%', minHeight: '400px' }}
+            id="video-model-viewer"
+            skybox-image="legacy"
             data-video-url={assetUrl}
             loading="eager"
             reveal="auto"
           >
+            <div id="ar-prompt" slot="ar-prompt">
+              Place the video in your space
+            </div>
+            
             <button
               slot="ar-button"
-              className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+              className="absolute top-4 right-4 bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors z-10"
             >
               View in AR
             </button>
-            <div className="absolute bottom-4 left-4 right-4 text-center bg-black/50 text-white text-sm rounded-lg p-2">
-              Tap to play/pause video
+
+            <div className="absolute bottom-4 left-4 right-4 flex justify-center space-x-4">
+              <button
+                id="play-button"
+                className="bg-white/90 hover:bg-white text-black px-4 py-2 rounded-lg shadow-lg transition-colors"
+                onClick={() => {
+                  const video = modelViewerRef.current?._arVideo;
+                  if (video) {
+                    if (video.paused) {
+                      video.play();
+                    } else {
+                      video.pause();
+                    }
+                  }
+                }}
+              >
+                Play/Pause
+              </button>
             </div>
           </model-viewer>
-          {/* Hidden video element for loading state check */}
-          <video 
+
+          {/* Video texture source - hidden but needed */}
+          <video
+            id="video-source"
             src={assetUrl}
             style={{ display: 'none' }}
             playsInline
             muted
+            loop
             crossOrigin="anonymous"
-            onError={(e) => console.error('Preview video error:', e)}
+            onError={(e) => console.error('Video error:', e)}
           />
         </div>
       );
