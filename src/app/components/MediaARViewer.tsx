@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
+import ARViewer from './ARViewer';
 
 interface MediaARViewerProps {
   assetUrl: string;
@@ -9,67 +10,7 @@ interface MediaARViewerProps {
 }
 
 export default function MediaARViewer({ assetUrl, assetType, alt = "AR Media" }: MediaARViewerProps) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const imageRef = useRef<HTMLImageElement>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (assetType === 'video' && videoRef.current) {
-      const video = videoRef.current;
-
-      const handleLoadedData = () => {
-        setIsLoading(false);
-        // Try to auto-play video
-        video.play().catch(err => {
-          console.log('Auto-play failed, user interaction required:', err);
-          // Don't set error, just wait for user interaction
-        });
-      };
-
-      const handlePlay = () => setIsPlaying(true);
-      const handlePause = () => setIsPlaying(false);
-      const handleError = () => {
-        setError('Failed to load video');
-        setIsLoading(false);
-      };
-
-      video.addEventListener('loadeddata', handleLoadedData);
-      video.addEventListener('play', handlePlay);
-      video.addEventListener('pause', handlePause);
-      video.addEventListener('error', handleError);
-
-      return () => {
-        video.removeEventListener('loadeddata', handleLoadedData);
-        video.removeEventListener('play', handlePlay);
-        video.removeEventListener('pause', handlePause);
-        video.removeEventListener('error', handleError);
-      };
-    } else if (assetType === 'image' && imageRef.current) {
-      const img = imageRef.current;
-
-      const handleLoad = () => setIsLoading(false);
-      const handleError = () => {
-        setError('Failed to load image');
-        setIsLoading(false);
-      };
-
-      img.addEventListener('load', handleLoad);
-      img.addEventListener('error', handleError);
-
-      return () => {
-        img.removeEventListener('load', handleLoad);
-        img.removeEventListener('error', handleError);
-      };
-    }
-  }, [assetType]);
-
-  const handleVideoClick = () => {
-    if (videoRef.current && !isPlaying) {
-      videoRef.current.play().catch(console.error);
-    }
-  };
 
   if (error) {
     return (
@@ -83,50 +24,32 @@ export default function MediaARViewer({ assetUrl, assetType, alt = "AR Media" }:
     );
   }
 
-  // Show media immediately, don't wait for loading state
-  // This fixes the "Loading video..." issue
+  // Use ARViewer with the video plane model for videos
+  if (assetType === 'video') {
+    return (
+      <div className="w-full h-full relative">
+        <ARViewer
+          assetUrl={assetUrl}
+          alt={alt}
+          autoActivateAR={false}
+        />
+      </div>
+    );
+  }
 
+  // For images, maintain the current behavior
   return (
     <div className="w-full h-full relative bg-black rounded-lg overflow-hidden">
-      {assetType === 'video' ? (
-        <video
-          ref={videoRef}
-          src={assetUrl}
-          className="w-full h-full object-contain"
-          controls
-          playsInline
-          loop
-          muted={false}
-          autoPlay
-          onClick={handleVideoClick}
-          style={{ backgroundColor: 'black' }}
-        />
-      ) : (
-        <img
-          ref={imageRef}
-          src={assetUrl}
-          alt={alt}
-          className="w-full h-full object-contain"
-          style={{ backgroundColor: 'black' }}
-        />
-      )}
-
-      {isLoading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/80">
-          <div className="text-center text-white">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-2"></div>
-            <p>Loading {assetType}...</p>
-          </div>
-        </div>
-      )}
-
+      <img
+        src={assetUrl}
+        alt={alt}
+        className="w-full h-full object-contain"
+        style={{ backgroundColor: 'black' }}
+        onError={() => setError('Failed to load image')}
+      />
+      
       <div className="absolute bottom-4 left-4 right-4 text-center text-white text-sm bg-black/70 rounded-lg p-3">
-        <p>
-          {assetType === 'video'
-            ? 'Video loaded successfully. Use device controls to play/pause.'
-            : 'Image loaded successfully in AR-compatible format.'
-          }
-        </p>
+        <p>Image loaded successfully in AR-compatible format.</p>
         <p className="text-xs text-gray-300 mt-1">
           For true AR placement on surfaces, use 3D model files (.glb/.gltf)
         </p>

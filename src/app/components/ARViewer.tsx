@@ -56,80 +56,55 @@ export default function ARViewer({ assetUrl, poster, alt = "AR Asset", autoActiv
 
   // Handle video textures in GLB models
   useEffect(() => {
-    if (assetType === 'model' && modelViewerRef.current) {
+    if (modelViewerRef.current) {
       const modelViewer = modelViewerRef.current;
+      const isVideoModel = assetType === 'video';
 
       // Listen for model load to apply video textures
       const handleModelLoad = () => {
-        // Check if this is a video-textured model by looking for video elements in the model
         setTimeout(() => {
-          // Find any video elements that might be part of the model
-          const videos = modelViewer.shadowRoot?.querySelectorAll('video') || [];
-          videos.forEach((video: HTMLVideoElement) => {
-            if (!video.src && video.dataset.videoUrl) {
-              video.src = video.dataset.videoUrl;
-              video.crossOrigin = 'anonymous';
-              video.loop = true;
-              video.muted = false;
-              video.playsInline = true;
-              video.play().catch(err => {
-                console.log('Video autoplay failed, user interaction required:', err);
-              });
-            }
-          });
+          if (isVideoModel) {
+            // Create and set up the video element for the plane
+            const video = document.createElement('video');
+            video.src = modelViewer.dataset.videoUrl;
+            video.crossOrigin = 'anonymous';
+            video.loop = true;
+            video.muted = false;
+            video.playsInline = true;
+            video.style.display = 'none';
+            document.body.appendChild(video);
 
-          // Alternative: Check for materials that should be video textures
-          const materials = modelViewer.shadowRoot?.querySelectorAll('[data-video-texture]');
-          materials.forEach((material: any) => {
-            const videoUrl = material.dataset.videoTexture;
-            if (videoUrl) {
-              // Create video element and apply as texture
-              const video = document.createElement('video');
-              video.src = videoUrl;
-              video.crossOrigin = 'anonymous';
-              video.loop = true;
-              video.muted = false;
-              video.playsInline = true;
-              video.style.display = 'none';
-              document.body.appendChild(video);
-
-              video.addEventListener('loadeddata', () => {
-                video.play().catch(console.error);
-              });
-
-              // Store reference for cleanup
-              (material as any)._arVideo = video;
-            }
-          });
-
-          // NEW: Handle simple video plane models - look for placeholder video elements
-          const placeholderVideos = modelViewer.shadowRoot?.querySelectorAll('video[placeholder]');
-          placeholderVideos.forEach((video: HTMLVideoElement) => {
-            // Extract video URL from the asset URL or use a default
-            const url = new URL(window.location.href);
-            const videoUrl = url.searchParams.get('videoUrl') || assetUrl.replace('.glb', '.mp4');
-
-            if (videoUrl && videoUrl !== assetUrl) { // Make sure it's not the GLB URL itself
-              video.src = videoUrl;
-              video.crossOrigin = 'anonymous';
-              video.loop = true;
-              video.muted = false;
-              video.playsInline = true;
-              video.removeAttribute('placeholder');
-
+            // Find the video plane in the model
+            const material = modelViewer.model?.materials[0];
+            if (material) {
+              material.pbrMetallicRoughness.baseColorTexture.source = video;
               video.addEventListener('loadeddata', () => {
                 video.play().catch(err => {
-                  console.log('Video plane autoplay failed:', err);
+                  console.log('Video autoplay failed, user interaction required:', err);
                   // Add click to play fallback
-                  video.addEventListener('click', () => video.play());
+                  modelViewer.addEventListener('click', () => {
+                    video.play().catch(console.error);
+                  }, { once: true });
                 });
               });
-
-              video.addEventListener('error', (e) => {
-                console.error('Video plane load error:', e);
-              });
             }
-          });
+
+            // Store reference for cleanup
+            modelViewer._arVideo = video;
+          } else if (assetType === 'model') {
+            // Handle video textures in regular models
+            const videos = modelViewer.shadowRoot?.querySelectorAll('video') || [];
+            videos.forEach((video: HTMLVideoElement) => {
+              if (!video.src && video.dataset.videoUrl) {
+                video.src = video.dataset.videoUrl;
+                video.crossOrigin = 'anonymous';
+                video.loop = true;
+                video.muted = false;
+                video.playsInline = true;
+                video.play().catch(console.error);
+              }
+            });
+          }
         }, 1000); // Wait for model to fully load
       };
 
@@ -137,6 +112,9 @@ export default function ARViewer({ assetUrl, poster, alt = "AR Asset", autoActiv
       return () => {
         modelViewer.removeEventListener('load', handleModelLoad);
         // Cleanup video elements
+        if (modelViewer._arVideo) {
+          modelViewer._arVideo.remove();
+        }
         const videos = document.querySelectorAll('video[data-ar-video-temp]');
         videos.forEach(video => video.remove());
       };
@@ -174,21 +152,21 @@ export default function ARViewer({ assetUrl, poster, alt = "AR Asset", autoActiv
     }
 
     if (assetType === 'video') {
+      // For video, we'll create a plane model with the video as a texture
       return (
         <model-viewer
           ref={modelViewerRef}
-          poster={poster || assetUrl}
+          src="https://cdn.glitch.global/5d781837-8321-47da-9888-c2f5a8bcfe29/video_plane.glb?v=1698495437044"
           alt={alt}
           ar
           ar-modes="webxr scene-viewer quick-look"
           camera-controls
-          auto-rotate
+          auto-rotate={false}
           shadow-intensity="1"
           exposure="1"
           style={{ width: '100%', height: '100%', minHeight: '400px' }}
+          data-video-url={assetUrl}
         >
-          {/* Create a plane with video texture */}
-          <div slot="poster" style={{ backgroundImage: `url(${assetUrl})`, backgroundSize: 'cover', width: '100%', height: '100%' }}></div>
           <button
             slot="ar-button"
             className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors"
