@@ -101,6 +101,35 @@ export default function ARViewer({ assetUrl, poster, alt = "AR Asset", autoActiv
               (material as any)._arVideo = video;
             }
           });
+
+          // NEW: Handle simple video plane models - look for placeholder video elements
+          const placeholderVideos = modelViewer.shadowRoot?.querySelectorAll('video[placeholder]');
+          placeholderVideos.forEach((video: HTMLVideoElement) => {
+            // Extract video URL from the asset URL or use a default
+            const url = new URL(window.location.href);
+            const videoUrl = url.searchParams.get('videoUrl') || assetUrl.replace('.glb', '.mp4');
+
+            if (videoUrl && videoUrl !== assetUrl) { // Make sure it's not the GLB URL itself
+              video.src = videoUrl;
+              video.crossOrigin = 'anonymous';
+              video.loop = true;
+              video.muted = false;
+              video.playsInline = true;
+              video.removeAttribute('placeholder');
+
+              video.addEventListener('loadeddata', () => {
+                video.play().catch(err => {
+                  console.log('Video plane autoplay failed:', err);
+                  // Add click to play fallback
+                  video.addEventListener('click', () => video.play());
+                });
+              });
+
+              video.addEventListener('error', (e) => {
+                console.error('Video plane load error:', e);
+              });
+            }
+          });
         }, 1000); // Wait for model to fully load
       };
 

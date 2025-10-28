@@ -141,3 +141,5 @@ export default function ARExperience() {
     </Suspense>
   );
 }
+
+// Helper function to create video plane URLs (moved to separate utility file)
