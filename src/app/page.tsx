@@ -1,59 +1,101 @@
-import Image from "next/image";
+'use client';
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function Home() {
+  const [assetUrl, setAssetUrl] = useState('');
+  const [error, setError] = useState('');
+  const router = useRouter();
+
+  const validateUrl = (url: string) => {
+    try {
+      new URL(url);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const getAssetType = (url: string) => {
+    const extension = url.split('.').pop()?.toLowerCase();
+    if (['glb', 'gltf'].includes(extension || '')) return 'model';
+    if (['mp4', 'webm', 'mov'].includes(extension || '')) return 'video';
+    if (['png', 'jpg', 'jpeg', 'gif'].includes(extension || '')) return 'image';
+    return 'unknown';
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+
+    if (!assetUrl.trim()) {
+      setError('Please enter an asset URL');
+      return;
+    }
+
+    if (!validateUrl(assetUrl)) {
+      setError('Please enter a valid URL');
+      return;
+    }
+
+    const assetType = getAssetType(assetUrl);
+    if (assetType === 'unknown') {
+      setError('Unsupported file format. Please use GLB/GLTF for 3D models, MP4/WebM for videos, or PNG/JPG for images.');
+      return;
+    }
+
+    // Redirect to AR experience with URL parameter
+    router.push(`/ar?url=${encodeURIComponent(assetUrl)}`);
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-black to-gray-900 text-white">
-      <main className="container mx-auto px-4 py-16">
-        {/* Hero Section */}
-        <div className="text-center mb-20">
-          <h1 className="text-6xl font-bold mb-6 bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent">
-            Experience Reality, Augmented
+    <div className="min-h-screen bg-gradient-to-b from-black to-gray-900 text-white flex items-center justify-center">
+      <div className="max-w-md w-full mx-4">
+        <div className="text-center mb-8">
+          <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-blue-400 to-purple-600 bg-clip-text text-transparent">
+            AR Asset Loader
           </h1>
-          <p className="text-xl text-gray-300 mb-8">
-            Discover the future of interactive experiences through augmented reality
+          <p className="text-gray-300">
+            Paste a URL to your 3D model, video, or image to experience it in Augmented Reality
           </p>
-          <button className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-8 rounded-full transition-all transform hover:scale-105">
-            Get Started
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <input
+              type="url"
+              value={assetUrl}
+              onChange={(e) => setAssetUrl(e.target.value)}
+              placeholder="https://example.com/your-asset.glb"
+              className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+              required
+            />
+          </div>
+
+          {error && (
+            <div className="text-red-400 text-sm bg-red-900/20 border border-red-800 rounded-lg p-3">
+              {error}
+            </div>
+          )}
+
+          <button
+            type="submit"
+            className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition-colors transform hover:scale-105"
+          >
+            Load in AR
           </button>
-        </div>
+        </form>
 
-        {/* Features Section */}
-        <div className="grid md:grid-cols-3 gap-8 mb-20">
-          <div className="bg-gray-800 p-6 rounded-xl hover:bg-gray-700 transition-colors">
-            <h3 className="text-2xl font-semibold mb-4">Interactive Design</h3>
-            <p className="text-gray-300">Create immersive AR experiences that captivate and engage users.</p>
-          </div>
-          <div className="bg-gray-800 p-6 rounded-xl hover:bg-gray-700 transition-colors">
-            <h3 className="text-2xl font-semibold mb-4">Real-time Tracking</h3>
-            <p className="text-gray-300">Advanced tracking technology for seamless AR integration.</p>
-          </div>
-          <div className="bg-gray-800 p-6 rounded-xl hover:bg-gray-700 transition-colors">
-            <h3 className="text-2xl font-semibold mb-4">Cross-platform</h3>
-            <p className="text-gray-300">Deploy your AR applications across multiple platforms effortlessly.</p>
+        <div className="mt-8 text-center text-sm text-gray-400">
+          <p className="mb-2">Supported formats:</p>
+          <div className="flex justify-center space-x-4">
+            <span className="bg-gray-800 px-2 py-1 rounded">GLB/GLTF</span>
+            <span className="bg-gray-800 px-2 py-1 rounded">MP4/WebM</span>
+            <span className="bg-gray-800 px-2 py-1 rounded">PNG/JPG</span>
           </div>
         </div>
-
-        {/* CTA Section */}
-        <div className="text-center bg-gradient-to-r from-purple-900 to-blue-900 p-12 rounded-2xl">
-          <h2 className="text-4xl font-bold mb-6">Ready to Transform Reality?</h2>
-          <p className="text-xl text-gray-300 mb-8">Join us in shaping the future of augmented reality</p>
-          <div className="flex justify-center gap-4">
-            <button className="bg-white text-purple-900 font-bold py-3 px-8 rounded-full hover:bg-gray-100 transition-colors">
-              Start Free Trial
-            </button>
-            <button className="border-2 border-white text-white font-bold py-3 px-8 rounded-full hover:bg-white/10 transition-colors">
-              Learn More
-            </button>
-          </div>
-        </div>
-      </main>
-      
-      {/* Footer */}
-      <footer className="bg-black/50 py-8">
-        <div className="container mx-auto px-4 text-center text-gray-400">
-          <p>&copy; 2025 AR Experience. All rights reserved.</p>
-        </div>
-      </footer>
+      </div>
     </div>
   );
 }
