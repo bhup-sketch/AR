@@ -1,10 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { createXRStore, ARButton, XR, useXR, Interactive } from '@react-three/xr';
-import { Plane, Text } from '@react-three/drei';
-import { Canvas } from '@react-three/fiber';
-import * as THREE from 'three';
 
 interface MediaARViewerProps {
   assetUrl: string;
@@ -12,198 +8,126 @@ interface MediaARViewerProps {
   alt?: string;
 }
 
-function MediaPlane({ assetUrl, assetType, onPlaced }: {
-  assetUrl: string;
-  assetType: 'video' | 'image';
-  onPlaced: () => void;
-}) {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const [texture, setTexture] = useState<THREE.Texture | null>(null);
-  const [isPlaced, setIsPlaced] = useState(false);
-  const { session } = useXR();
+export default function MediaARViewer({ assetUrl, assetType, alt = "AR Media" }: MediaARViewerProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    if (assetType === 'video') {
-      const video = document.createElement('video');
-      video.src = assetUrl;
-      video.crossOrigin = 'anonymous';
-      video.loop = true;
-      video.muted = false; // Allow audio in AR
-      video.playsInline = true;
-      video.preload = 'auto';
+    if (assetType === 'video' && videoRef.current) {
+      const video = videoRef.current;
 
-      const videoTexture = new THREE.VideoTexture(video);
-      videoTexture.minFilter = THREE.LinearFilter;
-      videoTexture.magFilter = THREE.LinearFilter;
-      videoTexture.format = THREE.RGBFormat;
+      const handleLoadedData = () => {
+        setIsLoading(false);
+        // Auto-play video
+        video.play().catch(err => {
+          console.error('Auto-play failed:', err);
+          setError('Tap to play video');
+        });
+      };
 
-      video.addEventListener('loadeddata', () => {
-        video.play().catch(console.error);
-        setTexture(videoTexture);
-      });
+      const handlePlay = () => setIsPlaying(true);
+      const handlePause = () => setIsPlaying(false);
+      const handleError = () => {
+        setError('Failed to load video');
+        setIsLoading(false);
+      };
 
-      video.addEventListener('error', (e) => {
-        console.error('Video load error:', e);
-      });
+      video.addEventListener('loadeddata', handleLoadedData);
+      video.addEventListener('play', handlePlay);
+      video.addEventListener('pause', handlePause);
+      video.addEventListener('error', handleError);
 
       return () => {
-        video.pause();
-        videoTexture.dispose();
+        video.removeEventListener('loadeddata', handleLoadedData);
+        video.removeEventListener('play', handlePlay);
+        video.removeEventListener('pause', handlePause);
+        video.removeEventListener('error', handleError);
       };
-    } else if (assetType === 'image') {
-      const loader = new THREE.TextureLoader();
-      loader.crossOrigin = 'anonymous';
-      loader.load(
-        assetUrl,
-        (loadedTexture) => {
-          loadedTexture.minFilter = THREE.LinearFilter;
-          loadedTexture.magFilter = THREE.LinearFilter;
-          loadedTexture.generateMipmaps = false;
-          setTexture(loadedTexture);
-        },
-        undefined,
-        (error) => {
-          console.error('Image load error:', error);
-        }
-      );
-    }
-  }, [assetUrl, assetType]);
+    } else if (assetType === 'image' && imageRef.current) {
+      const img = imageRef.current;
 
-  const handleTap = () => {
-    if (!isPlaced && session) {
-      setIsPlaced(true);
-      onPlaced();
+      const handleLoad = () => setIsLoading(false);
+      const handleError = () => {
+        setError('Failed to load image');
+        setIsLoading(false);
+      };
+
+      img.addEventListener('load', handleLoad);
+      img.addEventListener('error', handleError);
+
+      return () => {
+        img.removeEventListener('load', handleLoad);
+        img.removeEventListener('error', handleError);
+      };
+    }
+  }, [assetType]);
+
+  const handleVideoClick = () => {
+    if (videoRef.current && !isPlaying) {
+      videoRef.current.play().catch(console.error);
     }
   };
 
-  if (!texture) {
+  if (error) {
     return (
-      <Interactive onSelect={handleTap}>
-        <Plane ref={meshRef} args={[2, 1.5]} position={[0, 0, -1]}>
-          <meshBasicMaterial color="#4a5568" />
-          <Text
-            position={[0, 0, 0.01]}
-            fontSize={0.1}
-            color="white"
-            anchorX="center"
-            anchorY="middle"
-          >
-            Tap to place {assetType}
-          </Text>
-        </Plane>
-      </Interactive>
+      <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
+        <div className="text-center text-white">
+          <div className="text-4xl mb-4">⚠️</div>
+          <p className="mb-2">{error}</p>
+          <p className="text-sm text-gray-400">Please check the URL and try again</p>
+        </div>
+      </div>
     );
   }
-
-  return (
-    <Interactive onSelect={handleTap}>
-      <Plane ref={meshRef} args={[2, 1.5]} position={[0, 0, -1]}>
-        <meshBasicMaterial map={texture} transparent />
-      </Plane>
-    </Interactive>
-  );
-}
-
-function ARScene({ assetUrl, assetType }: { assetUrl: string; assetType: 'video' | 'image' }) {
-  const [isPlaced, setIsPlaced] = useState(false);
-
-  return (
-    <>
-      <ambientLight intensity={0.6} />
-      <directionalLight position={[1, 1, 1]} intensity={0.8} />
-
-      {!isPlaced && (
-        <Text
-          position={[0, 1, -1]}
-          fontSize={0.15}
-          color="white"
-          anchorX="center"
-          anchorY="middle"
-        >
-          Point at a surface and tap to place
-        </Text>
-      )}
-
-      <MediaPlane
-        assetUrl={assetUrl}
-        assetType={assetType}
-        onPlaced={() => setIsPlaced(true)}
-      />
-    </>
-  );
-}
-
-export default function MediaARViewer({ assetUrl, assetType, alt = "AR Media" }: MediaARViewerProps) {
-  const [isSupported, setIsSupported] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
-  const xrStore = createXRStore();
-
-  useEffect(() => {
-    // Check for WebXR support
-    if ('xr' in navigator) {
-      navigator.xr?.isSessionSupported('immersive-ar').then((supported) => {
-        setIsSupported(supported);
-        setIsLoading(false);
-      }).catch(() => {
-        setError('WebXR not supported');
-        setIsLoading(false);
-      });
-    } else {
-      setError('WebXR not available');
-      setIsLoading(false);
-    }
-  }, []);
 
   if (isLoading) {
     return (
       <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
         <div className="text-center text-white">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mx-auto mb-2"></div>
-          <p>Checking AR support...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || !isSupported) {
-    return (
-      <div className="w-full h-full flex items-center justify-center bg-gray-800 rounded-lg">
-        <div className="text-center text-white">
-          <div className="text-4xl mb-4">📱</div>
-          <p className="mb-2">AR not supported on this device</p>
-          <p className="text-sm text-gray-400 mb-4">Try using a mobile device with AR support</p>
-          <div className="bg-gray-700 p-4 rounded-lg">
-            <p className="text-sm">
-              <strong>Note:</strong> {assetType === 'video' ? 'Videos' : 'Images'} require AR-capable devices for 3D placement.
-              Use 3D model files (.glb/.gltf) for the best AR experience.
-            </p>
-          </div>
+          <p>Loading {assetType}...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="w-full h-full relative">
-      <Canvas
-        camera={{ position: [0, 0, 2], fov: 70 }}
-        style={{ background: 'transparent' }}
-        gl={{ alpha: true }}
-      >
-        <XR store={xrStore}>
-          <ARScene assetUrl={assetUrl} assetType={assetType} />
-        </XR>
-      </Canvas>
-
-      <div className="absolute top-4 left-4 z-10">
-        <ARButton store={xrStore} className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition-colors">
-          Start AR
-        </ARButton>
-      </div>
+    <div className="w-full h-full relative bg-black rounded-lg overflow-hidden">
+      {assetType === 'video' ? (
+        <video
+          ref={videoRef}
+          src={assetUrl}
+          className="w-full h-full object-contain"
+          controls
+          playsInline
+          loop
+          muted={false}
+          onClick={handleVideoClick}
+          style={{ backgroundColor: 'black' }}
+        />
+      ) : (
+        <img
+          ref={imageRef}
+          src={assetUrl}
+          alt={alt}
+          className="w-full h-full object-contain"
+          style={{ backgroundColor: 'black' }}
+        />
+      )}
 
       <div className="absolute bottom-4 left-4 right-4 text-center text-white text-sm bg-black/70 rounded-lg p-3">
-        <p>Point your camera at a flat surface and tap the {assetType} to place it in the real world</p>
+        <p>
+          {assetType === 'video'
+            ? 'Video loaded successfully. Use device controls to play/pause.'
+            : 'Image loaded successfully in AR-compatible format.'
+          }
+        </p>
+        <p className="text-xs text-gray-300 mt-1">
+          For true AR placement on surfaces, use 3D model files (.glb/.gltf)
+        </p>
       </div>
     </div>
   );
