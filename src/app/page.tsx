@@ -132,7 +132,7 @@ export default function Home() {
                 type="submit"
                 className="w-full bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-4 rounded-lg transition-colors transform hover:scale-105"
               >
-                Load in AR
+                View in AR
               </button>
             </form>
 

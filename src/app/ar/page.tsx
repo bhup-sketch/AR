@@ -79,6 +79,7 @@ function ARExperienceContent() {
           <ARViewer
             assetUrl={assetUrl!}
             alt="Custom AR Asset"
+            autoActivateAR={true}
           />
         </div>
 

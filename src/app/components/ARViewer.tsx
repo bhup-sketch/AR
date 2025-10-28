@@ -7,11 +7,12 @@ interface ARViewerProps {
   assetUrl: string;
   poster?: string;
   alt?: string;
+  autoActivateAR?: boolean;
 }
 
 type AssetType = 'model' | 'video' | 'image' | 'unknown';
 
-export default function ARViewer({ assetUrl, poster, alt = "AR Asset" }: ARViewerProps) {
+export default function ARViewer({ assetUrl, poster, alt = "AR Asset", autoActivateAR = false }: ARViewerProps) {
   const modelViewerRef = useRef<any>(null);
   const [assetType, setAssetType] = useState<AssetType>('unknown');
   const [isLoading, setIsLoading] = useState(true);
@@ -39,6 +40,19 @@ export default function ARViewer({ assetUrl, poster, alt = "AR Asset" }: ARViewe
 
     setIsLoading(false);
   }, [assetUrl]);
+
+  useEffect(() => {
+    if (autoActivateAR && !isLoading && assetType !== 'unknown') {
+      // Auto-activate AR after a short delay to ensure model-viewer is ready
+      const timer = setTimeout(() => {
+        const arButton = document.querySelector('model-viewer button[slot="ar-button"]') as HTMLButtonElement;
+        if (arButton) {
+          arButton.click();
+        }
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [autoActivateAR, isLoading, assetType]);
 
   const renderModelViewer = () => {
     if (assetType === 'model') {
